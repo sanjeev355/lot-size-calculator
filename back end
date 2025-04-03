@@ -1,0 +1,99 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import axios from "axios";
+
+export default function LotSizeCalculator() {
+  const [accountSize, setAccountSize] = useState(50000);
+  const [riskPercentage, setRiskPercentage] = useState(0.5);
+  const [forexPair, setForexPair] = useState("EURUSD");
+  const [lotSize, setLotSize] = useState(null);
+  const [price, setPrice] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchPrice();
+  }, [forexPair]);
+
+  const fetchPrice = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`/api/price?pair=${forexPair}`);
+      setPrice(response.data.price);
+    } catch (error) {
+      console.error("Error fetching price", error);
+    }
+    setLoading(false);
+  };
+
+  const calculateLotSize = () => {
+    if (!price) return;
+    const riskAmount = (accountSize * riskPercentage) / 100;
+    const pipValue = 10 / price; 
+    const stopLossPips = 30; 
+    const calculatedLotSize = riskAmount / (stopLossPips * pipValue);
+    setLotSize(calculatedLotSize.toFixed(2));
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <Card className="w-full max-w-md p-4">
+        <CardContent>
+          <h2 className="text-xl font-bold mb-4">Forex Lot Size Calculator</h2>
+          <Input
+            type="number"
+            value={accountSize}
+            onChange={(e) => setAccountSize(Number(e.target.value))}
+            placeholder="Account Size ($)"
+            className="mb-2"
+          />
+          <Input
+            type="number"
+            value={riskPercentage}
+            onChange={(e) => setRiskPercentage(Number(e.target.value))}
+            placeholder="Risk Percentage (%)"
+            className="mb-2"
+          />
+          <select
+            value={forexPair}
+            onChange={(e) => setForexPair(e.target.value)}
+            className="w-full mb-2 border p-2"
+          >
+            <option value="EURUSD">EUR/USD</option>
+            <option value="GBPUSD">GBP/USD</option>
+            <option value="USDJPY">USD/JPY</option>
+          </select>
+          <Button onClick={calculateLotSize} disabled={loading}>
+            {loading ? "Fetching price..." : "Calculate Lot Size"}
+          </Button>
+          {lotSize && <p className="mt-4">Recommended Lot Size: {lotSize}</p>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Backend - Node.js with Express
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+
+app.get("/api/price", async (req, res) => {
+  const { pair } = req.query;
+  try {
+    const response = await axios.get(`https://api.tradingview.com/symbols/${pair}/price`);
+    res.json({ price: response.data.price });
+  } catch (error) {
+    console.error("Error fetching price", error);
+    res.status(500).json({ error: "Failed to fetch price" });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
